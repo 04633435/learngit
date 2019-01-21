@@ -1,0 +1,1005 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title></title>
+    <link href="css/bootstrap.min.css" rel="stylesheet">
+    <link href="css/simple-sidebar.css" rel="stylesheet">
+    <script src="js/jquery-3.3.1.min.js"></script>
+    <script src="js/bootstrap.js"></script>
+    <link href="css/bootstrap-table.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="css/bootstrap-table.css">
+    <script src="js/bootstrap-table.js"></script>
+    <!-- 引入中文语言包 -->
+    <script src="js/bootstrap-table-zh-CN.min.js"></script>
+    <script src="js/moment-with-locales.min.js"></script>
+    <link href="css/bootstrap-datetimepicker.min.css" rel="stylesheet">
+    <script src="js/bootstrap-datetimepicker.min.js"></script>
+    <script src="js/bootstrap-datetimepicker.zh-CN.js"></script>
+    <script src="js/my.js"></script>
+
+    <style>
+        div.bootstrap-table > div.fixed-table-toolbar > div.bars.pull-left{
+            float: right!important;
+        }
+        .modal-header {
+            padding: 8px;
+        }
+        #wrapper.toggled #sidebar-wrapper {
+            width: 190px;
+        }
+        #page-content-wrapper {
+            padding-top: 10px;
+            position: relative;
+        }
+        #sidebar-wrapper {
+            left: 230px;
+        }
+        #wrapper.toggled {
+            padding-left: 155px;
+        }
+        .form-control{
+            height: 30px;
+            font-size: 12px;
+        }
+        .well-sm {
+            padding: 3px;
+            border-radius: 8px;
+        }
+        .fixed-table-toolbar .dropdown-menu {
+            max-height: 70px;
+        }
+        #page-content ul#www{
+            width: 85%;
+            border: 0px solid mediumseagreen;
+            position: absolute;
+            top: 30px;
+            left: 15px;
+            box-sizing: border-box;
+            color: black;
+            background: beige;
+            border-radius: 4px;
+            z-index: 1;
+        }
+        #page-content  ul#www li{
+            line-height: 30px;
+            margin-left: -40px;
+            border-radius: 4px;
+            color: mediumseagreen;
+            cursor: pointer;
+            padding:0 0px;
+            box-sizing: border-box;
+        }
+        #page-content ul#www li:hover{
+            background: mediumseagreen;
+            border-radius:4px;
+            color:white;
+        }
+        #page-content #www .hidden{
+            display: none;
+        }
+        #page-content #www .show{
+            display: block;
+        }
+    </style>
+
+    <script>
+        function delA(dom){
+            Array.prototype.indexOf = function(val) {
+                for (var i = 0; i < this.length; i++) {
+                    if (this[i] == val) return i;
+                }
+                return -1;
+            };
+            Array.prototype.remove = function(val) {
+                var index = this.indexOf(val);
+                if (index > -1) {
+                    this.splice(index, 1);
+                }
+            };
+            var data=localStorage.getItem('pre_search_payunitcode');
+            data=data?JSON.parse(data):[];
+            data.remove(dom.getAttribute("title"));
+            localStorage.setItem('pre_search_payunitcode', JSON.stringify(data));
+            fresh();
+        }
+        window.onload = function () {
+            fresh();
+        }
+        function fresh() {
+            var text=document.getElementById('payUnitCode_query');
+            var hidden=document.getElementById('www');
+            var btn = document.getElementById('submitPL');
+            var data=localStorage.getItem('pre_search_payunitcode');
+            data=data?JSON.parse(data):[];
+            text.onkeyup = function () {
+                var txt=text.value;
+                if(!txt){
+                    hidden.className = 'hidden';
+                    return false;
+                }
+                var html='';
+                for(var i=0;i<data.length;i++){
+                    var reg=new RegExp(txt);
+                    var index= data[i].search(reg);
+                    if(index!=-1){
+                        html+=' <li>' + '<span>' + '&nbsp;&nbsp;&nbsp;&nbsp;' + data[i] + '</span>' + '<p onclick="delA(this)" class="del-item-link glyphicon glyphicon-remove pull-right" title="' + data[i] + '" style="margin-top: 8px;margin-right: 7px; text-decoration: none"></p>' + '</li>';
+                    }
+                }
+                hidden.innerHTML=html;
+                hidden.className='show';
+            };
+            btn.onclick = function () {
+                doSearch();
+                var txt=text.value;
+                if(txt && data.indexOf(txt) === -1 && $("#payUnitCode_query").val().split("-").length === 3){
+                    data.push(txt);
+                    localStorage.setItem('pre_search_payunitcode',JSON.stringify(data));
+                    hidden.className='hidden';
+                }else{
+                    hidden.className='hidden';
+                }
+            };
+            hidden.onclick= function (e) {
+                var li= e.target;
+                var title=li.innerText;
+                text.value=title.trim();
+                hidden.className = 'hidden';
+            }
+        }
+
+        function doSearch(){
+            if($('#payUnitCode_query').val() === ''){
+                $('#notNullTips').text('结帐号不能为空');
+                return false;
+            }else if($("#payUnitCode_query").val().split("-").length !== 3){
+                $('#notNullTips').text('输入的结账号不合法');
+                return false;
+            }else if(valConsignTime()){
+                setCookie("_startDate", $("#startDate").val());
+                setCookie("_endDate", $("#endDate").val());
+                $('#notNullTips').text('');
+                doLoadData($("#payUnitCode_query").val(), $("#startDate").val(), $("#endDate").val());
+            }
+        }
+
+        function valConsignTimeModel() {
+            if($("#fromdate").val() !== '' || $("#todate").val() !== ''){
+                if($('#todate').val() < $("#fromdate").val() || $("#fromdate").val() === '' && $('#todate').val() !== '') {
+                    $('#todate').val('');
+                    $('#payUnitLoading').text('委托日期不合法，请重新选择委托日期时间段');
+                    return false;
+                }
+            }
+            $('#payUnitLoading').text('');
+            return true;
+        }
+
+        function valConsignTime() {
+            if($("#startDate").val() !== '' || $('#endDate').val() !== ''){
+                if($('#endDate').val() < $("#startDate").val() || $("#startDate").val() === '' && $('#endDate').val() !== '') {
+                    $('#endDate').val('');
+                    $('#notNullTips').text('委托日期不合法，请重新选择委托日期时间段');
+                    return false;
+                }
+            }
+            $('#notNullTips').text('');
+            return true;
+        }
+
+        function cancelQuery(){
+            $('#payUnitCode_query').val('');
+            $('#cur_Info').hide();
+        }
+
+        function payUnitCodeSelection() {
+            var row = $.map($("#payUnitTable").bootstrapTable('getSelections'),function(row){
+                return row ;
+            });
+            if(row.length !== 0){
+                $('#cur_Info').show();
+                $('#myModal').modal('hide');
+                if($("#fromdate").val() && $("#todate").val()){
+                    setCookie("_fromDateM", $("#fromdate").val());
+                    setCookie("_toDateM", $("#todate").val());
+                }
+                $('#notNullTips').text('');
+                $('#payUnitLoading').text('');
+                $('#payUnitCode_query').val(row[0].value_0);
+                // $('#cur_PayUnitCode').html(row[0].value_0);
+                $('#cur_ProjectName').html(row[0].value_1);
+                $('#cur_ConsignUnit').html(row[0].value_2);
+                $('#cur_DetectProject').html(row[0].value_3);
+                $('#cur_finished').html(row[0].value_4);
+                $('#startDate').val($('#fromdate').val());
+                $('#endDate').val($('#todate').val());
+            }else{
+                $('#cur_Info').hide();
+                $('#myModal').modal('show');
+                $('#payUnitLoading').text('请选择一条结账号 或 取消查询 ');
+                $('#payUnitCode_query').val('');
+                // $('#cur_PayUnitCode').html('');
+                $('#cur_ProjectName').html('');
+                $('#cur_ConsignUnit').html('');
+                $('#cur_DetectProject').html('');
+                $('#cur_finished').html('');
+            }
+        }
+    </script>
+
+</head>
+<body style="font-size: 12px">
+<div id="wrapper" class="toggled">
+    <div id="sidebar-wrapper" style="overflow-x: hidden;">
+        <ul class="sidebar-nav">
+            <li class="sidebar-brand">
+                <a href="/login_su">
+                    报价管理系统
+                </a>
+            </li>
+            <li>
+                <a href="/para_ls" style="background-color: rgba(255, 255, 255, 0.2)"><i class="glyphicon glyphicon-ok"></i>&nbsp;&nbsp;医疗用品查询</a>
+            </li>
+            <li>
+                <a href="/workload_final_confirm"><i class="glyphicon glyphicon-ok-circle"></i>&nbsp;&nbsp;价格汇总</a>
+            </li>
+            <li>
+                <a href="/workload_final_confirm"><i class="glyphicon glyphicon-ok-circle"></i>&nbsp;&nbsp;导出报表</a>
+            </li>
+            <!--<li>-->
+                <!--<a href="/curr_user"><i class="glyphicon glyphicon-user"></i>&nbsp;&nbsp;当前用户</a>-->
+            <!--</li>-->
+
+            <!--<li>-->
+                <!--<a href="#summary" data-toggle="collapse" aria-expanded="false" class="dropdown-toggle"><i class="glyphicon glyphicon-book"></i>&nbsp;&nbsp;业务情况汇总<i class="glyphicon glyphicon-triangle-bottom"></i></a>-->
+            <!--</li>-->
+
+            <!--<li>-->
+                <!--<ul class="collapse list-unstyled" id="summary" style="padding-left: 20px;">-->
+                    <!--<li>-->
+                        <!--<a href="#summaryByConsign"><i class="glyphicon glyphicon-book"></i>&nbsp;&nbsp;按合同汇总</a>-->
+                    <!--</li>-->
+                    <!--<li>-->
+                        <!--<a href="#summaryByDept"><i class="glyphicon glyphicon-book"></i>&nbsp;&nbsp;按部门汇总</a>-->
+                    <!--</li>-->
+                <!--</ul>-->
+            <!--</li>-->
+
+            <!--<li>-->
+                <!--<a href="/export"><i class="glyphicon glyphicon-download-alt"></i>&nbsp;&nbsp;导出付款清单</a>-->
+            <!--</li>-->
+
+            <!--<li>-->
+                <!--<a href="#homeSubmenu" data-toggle="collapse" aria-expanded="false" class="dropdown-toggle"><i class="glyphicon glyphicon-print"></i>&nbsp;&nbsp;开票<i class="glyphicon glyphicon-triangle-bottom"></i></a>-->
+            <!--</li>-->
+
+            <!--<li>-->
+                <!--<ul class="collapse list-unstyled" id="homeSubmenu" style="padding-left: 20px;">-->
+                    <!--<li>-->
+                        <!--<a href="/invoice_payunit"><i class="glyphicon glyphicon-print"></i>&nbsp;&nbsp;按付款清单开票</a>-->
+                    <!--</li>-->
+                    <!--<li>-->
+                        <!--<a href="/invoice_priorpay"><i class="glyphicon glyphicon-print"></i>&nbsp;&nbsp;按预付款开票</a>-->
+                    <!--</li>-->
+                <!--</ul>-->
+            <!--</li>-->
+
+            <!--<li>-->
+                <!--<a href="#writeoff" data-toggle="collapse" aria-expanded="false" class="dropdown-toggle"><i class="glyphicon glyphicon-random"></i>&nbsp;&nbsp;销账<i class="glyphicon glyphicon-triangle-bottom"></i></a>-->
+            <!--</li>-->
+            <!--<li>-->
+                <!--<ul class="collapse list-unstyled" id="writeoff" style="padding-left: 20px;">-->
+                    <!--<li>-->
+                        <!--<a href="/receivable"><i class="glyphicon glyphicon-random"></i>&nbsp;&nbsp;收款</a>-->
+                    <!--</li>-->
+                    <!--<li>-->
+                        <!--<a href="/writeoff"><i class="glyphicon glyphicon-random"></i>&nbsp;&nbsp;销账</a>-->
+                    <!--</li>-->
+                <!--</ul>-->
+            <!--</li>-->
+
+            <li>
+                <a href="/logout"><i class="glyphicon glyphicon-log-out"></i>&nbsp;&nbsp;退出登录</a>
+            </li>
+        </ul>
+    </div>
+
+    <div id="page-content-wrapper">
+        <div class="container-fluid">
+            <a href="#menu-toggle" class="glyphicon glyphicon-list" id="menu-toggle" style="margin-left: 0px;"></a>
+            <a href="/logout" class="glyphicon glyphicon-log-out pull-right" style="font-size: 13px;"></a>
+            <a href="/curr_user"><span id="cur_user" style="font-size: 12px;float: right;margin-right: 10px;font-weight: bold;"></span></a>
+        </div>
+        <hr style="margin-top: 5px;margin-bottom: 10px;border: 0;border-top: 1px solid #eee;">
+        <div id="page-content" class="animated fadeInRight">
+            <form class="form-horizontal" method="post" action="/para_ls">
+                <div class="fixed-table-toolbar">
+                    <div class="form-group">
+                        <label class="control-label pull-left" style="margin-left: 20px;">序号:</label>
+                        <div class="col-sm-2 pull-left">
+                            <input id="payUnitCode_query" type="text" class="form-control" placeholder="请输入或点击右侧按钮获取序号" title="请输入或点击右侧按钮获取序号">
+                            <ul class="hidden btn-default" id="www" style="list-style: none">
+                                <li></li>
+                            </ul>
+                        </div>
+                        <div class="pull-left">
+                            <button type="button" id="queryBtn" class="btn btn-default btn-sm" data-toggle="modal" data-target="#myModal" data-keyboard="false" data-backdrop="static" onclick="queryBtnFcn()">录入新设备</button>
+                        </div>
+                        <!--<label class="control-label pull-left" style="margin-left: 30px;">委托日期:</label>-->
+                        <!--<div class="col-sm-2 pull-left">-->
+                            <!--<input type="text" class="form-control datepicker" id="startDate" placeholder="请选择委托日期">-->
+                        <!--</div>-->
+                        <!--<label class="control-label pull-left">至</label>-->
+                        <!--<div class="col-sm-2 pull-left">-->
+                            <!--<input type="text" class="form-control datepicker" id="endDate" placeholder="请选择委托日期">-->
+                        <!--</div>-->
+                        <div class="pull-right" style="margin-right: 2%;">
+                          <!--<button id="resetPL" class="btn btn-default btn-sm" type="button" onclick="clearConditions()">清空</button>-->
+                            <button id="submitPL" class="btn btn-primary btn-sm" type="button" onclick="doSearch()">提交</button>
+                        </div>
+                    </div>
+                </div>
+                <span style="color: red;" id="notNullTips"></span>
+            </form>
+            <div id="cur_Info" class="well well-sm" style="display: none;">
+                <!--<a style="color: #72ACE3; text-decoration: none;">当前结账号：</a><span id="cur_PayUnitCode">&nbsp;</span>-->
+                <a style="color:green;font-weight:bold;text-decoration: none;">工程名称：</a><span id="cur_ProjectName">&nbsp;</span>
+                &nbsp;&nbsp;<a style="color:green;font-weight:bold;text-decoration: none;">委托单位：</a><span id="cur_ConsignUnit">&nbsp;</span>
+                &nbsp;&nbsp;<a style="color:green;font-weight:bold;text-decoration: none;">检测项目：</a><span id="cur_DetectProject">&nbsp;</span>
+                &nbsp;&nbsp;<a style="color:green;font-weight:bold;text-decoration: none;">是否完结：</a><span id="cur_finished">&nbsp;</span>
+            </div>
+            <!-- 查询结账号模态框 -->
+            <div class="modal fade" id="myModal" tabindex="-1" role="dialog" aria-labelledby="myModalLabel"
+                 aria-hidden="true">
+                <div class="modal-dialog" style="width:80%;">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+                            <h4 class="modal-title text-center" id="myModalLabel">录入功能</h4>
+                        </div>
+                        <div class="modal-body">
+                            <form class="form-horizontal" method="post" action="/confirmEntry">
+                                <div class="fixed-table-toolbar">
+                                    <div class="form-group">
+                                        <label class="control-label pull-left" style="margin-left: 1.5%">序号:</label>
+                                        <div class="col-sm-2 pull-left">
+                                            <input id="projectNamePU" type="text" class="form-control" placeholder="请输入设备序号">
+                                        </div>
+
+                                        <label class="control-label pull-left" style="margin-left: 0.5%">计费类别:</label>
+                                        <div class="col-sm-2 pull-left">
+                                            <input type="text" class="form-control" id="consignPU" placeholder="请输入计费类别">
+                                        </div>
+
+                                        <label class="control-label pull-left" style="margin-left: 0.5%">设备名称:</label>
+                                        <div class="col-sm-2 pull-left">
+                                            <input type="text" id="detectPU" class="form-control" placeholder="请输入设备名称">
+                                        </div>
+                                        <label class="control-label pull-left" style="margin-left: 0.5%">数量:</label>
+                                        <div class="col-sm-2 pull-left">
+                                            <input type="text" id="detectPU2" class="form-control" placeholder="请输入数量">
+                                        </div>
+                                        <label class="control-label pull-left" style="margin-left: 0.5%">购入价:</label>
+                                        <div class="col-sm-2 pull-left">
+                                            <input type="text" id="detectPU12" class="form-control" placeholder="请输入购入价格">
+                                        </div>
+                                        <label class="control-label pull-left" style="margin-left: 0.5%">购买日期:</label>
+                                        <div class="col-sm-2 pull-left">
+                                            <input type="text" id="detectPU3" class="form-control" placeholder="请输入购买日期">
+                                        </div>
+
+                                        <label class="control-label pull-left" style="margin-left: 0.5%">年份系数:</label>
+                                        <div class="col-sm-2 pull-left">
+                                            <input type="text" id="detectPU5" class="form-control" placeholder="请输入年份系数">
+                                        </div>
+                                        <label class="control-label pull-left" style="margin-left: 0.5%">核算系数:</label>
+                                        <div class="col-sm-2 pull-left">
+                                            <input type="text" id="detectPU6" class="form-control" placeholder="请输入核算系数">
+                                        </div>
+
+                                    </div>
+
+                                    <div class="form-group">
+                                        <!--<label class="control-label pull-left" style="margin-left: 1.5%;">起始日期:</label>-->
+                                        <!--<div class="col-sm-2 pull-left">-->
+                                            <!--<input type="text" class="form-control datepicker" id="fromdate" placeholder="请选择委托日期">-->
+                                        <!--</div>-->
+                                        <!--<label class="control-label pull-left" style="margin-left: 0.5%;">截止日期:</label>-->
+                                        <!--<div class="col-sm-2 pull-left">-->
+                                            <!--<input type="text" class="form-control datepicker" id="todate" placeholder="请选择委托日期">-->
+                                        <!--</div>-->
+
+                                        <!--<label class="control-label pull-left" style="margin-left: 0.5%;">是否完结:</label>-->
+                                        <!--<div class="col-sm-2 pull-left" style="margin-right: 0.5%;">-->
+                                            <!--<select id="finished" class="form-control">-->
+                                                <!--<option value="否">否</option>-->
+                                                <!--<option value="是">是</option>-->
+                                                <!--<option value="">全部</option>-->
+                                            <!--</select>-->
+                                        <!--</div>-->
+
+                                        <div class="pull-left" style="margin-left:50%;">
+                                         <!--<button class="btn btn-default btn-sm" type="button" onclick="clearPayUnitCodeCondition()" id="resetForPayUnitCode">清空</button>-->
+
+                                            <button class="btn btn-primary btn-sm" type="submit" id="submitForPayUnitCode">确认录入</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </form>
+                            <!-- 加载结帐号时的Loading -->
+                            <!--<p style="text-align:right;color:red" id="payUnitLoading"></p>-->
+                            <!--<div style="overflow:hidden;">-->
+                                <!--<table id="payUnitTable" class="table" style="table-layout: automatic; overflow:hidden;  text-overflow:clip;white-space: nowrap;"></table>-->
+                            <!--</div>-->
+                        </div>
+                        <!--<div class="modal-footer">-->
+                            <!--<button type="button" class="btn btn-default btn-sm" data-dismiss="modal" onclick="cancelQuery()">取消查询</button>-->
+                            <!--<button type="button" class="btn btn-primary btn-sm" onclick="payUnitCodeSelection()">确认选择该结账号</button>-->
+                        <!--</div>-->
+                    </div>
+                </div>
+            </div>
+            <hr style="margin-top: 5px;margin-bottom: 10px;border: 0;border-top: 1px solid #eee;">
+
+            <!--加载reportTable数据时显示的提示信息-->
+            <p style="text-align:right;color:red" id="testLoad"></p>
+            <p style="text-align:right;color:green;font-weight:bold;" id="testLoadGreen"></p>
+
+            <div style="overflow:hidden;">
+                <table id="reportTable" class="table table-bordered" style="table-layout: automatic;  overflow:hidden;  text-overflow:clip;white-space: nowrap;">
+                    <!--<div class="toolbar">-->
+                        <!--<button id="piLiang_Edit" disabled="disabled" onclick="clearPriceAndAmount()" class="btn btn-success pull-right btn-sm" type="button" data-toggle="modal" data-target="#editModal" data-keyboard="false" data-backdrop="static">批量编辑</button>-->
+                    <!--</div>-->
+                </table>
+            </div>
+
+            <div class="modal fade" id="editModal" tabindex="-1" role="dialog" aria-labelledby="editModalLabel"
+                 aria-hidden="true" style="margin:15% auto;">
+                <div class="modal-dialog" style="width:80%;">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+                            <h4 class="modal-title text-center" id="editModalLabel">批量修改单价数量</h4>
+                        </div>
+                        <div class="modal-body">
+                            <form class="form-horizontal" method="post" action="/para_ls">
+                                <div class="fixed-table-toolbar">
+                                    <div class="form-group">
+                                        <label class="col-sm-2 control-label">单价：</label>
+                                        <div class="col-sm-2">
+                                            <input type="text" class="form-control" id="input_Price" placeholder="请输入单价">
+                                        </div>
+                                        <label class="col-sm-2 control-label">数量：</label>
+                                        <div class="col-sm-2">
+                                            <input type="text" class="form-control" id="input_Amount" placeholder="请输入数量">
+                                        </div>
+                                        <button id="btn_pre_save" style="display:none;" class="btn btn-primary" type="button" onclick="batchEdit('0')">预确认</button>
+                                    </div>
+                                    <p style="color:red;margin-left: 8%;" id="prepSureTips"></p>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+</div>
+
+<script type="text/javascript">
+    var standardSum = 0;
+    var Sum = 0;
+    function clearPriceAndAmount() {
+        $('#input_Price').val('');
+        $('#input_Amount').val('');
+    }
+
+    function verifyAndSubmit() {
+        if(valConsignTimeModel()){
+            doLoadPayUnitCodeData(1);
+        }
+    }
+
+    function getHeight() {
+        return $(window).height() - 300;
+    }
+
+    function doLoadPayUnitCodeData(isHaveData){
+        var projectname = $('#projectNamePU').val();
+        var consignunit = $('#consignPU').val();
+        var detectionitem = $('#detectPU').val();
+        var finished = $('#finished').val();
+        var fromdate = $('#fromdate').val();
+        var todate = $('#todate').val();
+        var datas;
+
+        if(!isHaveData){
+            datas = [];
+        }else{
+            var ajaxTimeOut = $.ajax({
+                type:'post',
+                url:"/payunitcodes",
+                timeout: 30000,
+                data:{"projectname": projectname,"consignunit":consignunit, "detectionitem": detectionitem, "finished": finished, "fromdate":fromdate, "todate":todate},
+                async:true,
+                beforeSend: function(){
+                    $('#payUnitLoading').text('正在请求数据，请稍后...');
+                    $('#submitForPayUnitCode').attr('disabled', true);
+                    $('#resetForPayUnitCode').attr('disabled', true);
+                },
+                success: function (data) {
+                    $('#payUnitLoading').text('');
+                    $('#payUnitTable').bootstrapTable('destroy');
+                    $('#payUnitTable').bootstrapTable({
+                        method: 'post',
+                        cache: false,
+                        height: getHeight(),
+                        striped: false,
+                        sortOrder: "ID asc",
+                        pagination: true,
+                        pageSize: 10,
+                        pageNumber: 1,
+                        pageList: [10,30,50,100,300,500,1000],
+                        search: true,
+                        strictSearch: false,
+                        trimOnSearch: true,
+                        searchAlign: "left",
+                        toolbarAlign: "left",
+                        showColumns: true,
+                        minimumCountColumns: 1,
+                        clickToSelect: true,
+                        singleSelect: true,
+                        sidePagination: "client",
+                        columns:
+                            [
+                                {field: "checked", radio: true},
+                                {field: "value_0", title: "结账号", align: "left", valign: "middle", halign:"center", sortable: "true"},
+                                {field: "value_1", title: "工程名称", align: "left", valign: "middle", halign:"center", sortable: "true"},
+                                {field: "value_2", title: "委托单位", align: "left", valign: "middle", halign:"center", sortable: "true"},
+                                {field: "value_3", title: "检测项目", align: "left", valign: "middle", halign:"center", sortable: "true"},
+                                {field: "value_4", title: "是否完结", align: "left", valign: "middle", halign:"center", sortable: "true"}
+                            ],
+                        data: data,
+                        onDblClickRow: function (e, row, ele) {
+                            payUnitCodeSelection();
+                        }
+                    });
+                    $('#submitForPayUnitCode').attr('disabled', false);
+                    $('#resetForPayUnitCode').attr('disabled', false);
+                },
+                complete: function (XMLHttpRequest, status) {
+                    if (status == 'timeout') {
+                        ajaxTimeOut.abort();
+                        $('#payUnitLoading').text('请求数据已超时！请再试一次');
+                        $('#submitForPayUnitCode').attr('disabled', false);
+                        $('#resetForPayUnitCode').attr('disabled', false);
+                    }
+                }
+            });
+        }
+        $('#payUnitTable').bootstrapTable('destroy');
+        $('#payUnitTable').bootstrapTable({
+            method: 'post',
+            cache: false,
+            height: getHeight(),
+            striped: false,
+            sortOrder: "ID asc",
+            pagination: true,
+            pageSize: 10,
+            pageNumber: 1,
+            pageList: [10,30,50,100,300,500,1000],
+            search: true,
+            strictSearch: false,
+            trimOnSearch: true,
+            searchAlign: "left",
+            toolbarAlign: "left",
+            showColumns: true,
+            minimumCountColumns: 1,
+            clickToSelect: true,
+            singleSelect: true,
+            sidePagination: "client",
+            columns:
+                [
+                    {field: "checked", radio: true},
+                    {field: "value_0", title: "结账号", align: "left", valign: "middle", halign:"center", sortable: "true"},
+                    {field: "value_1", title: "工程名称", align: "left", valign: "middle", halign:"center", sortable: "true"},
+                    {field: "value_2", title: "委托单位", align: "left", valign: "middle", halign:"center", sortable: "true"},
+                    {field: "value_3", title: "检测项目", align: "left", valign: "middle", halign:"center", sortable: "true"},
+                    {field: "value_4", title: "是否完结", align: "left", valign: "middle", halign:"center", sortable: "true"}
+                ],
+            data: datas
+        });
+    }
+
+    function doLoadData(payunitcode, consigndatefrom, consigndateto){
+        var plAjax = $.ajax({
+            type:'post',
+            url:"/para_ls_json",
+            timeout: 32000,
+            data:{"payunitcode":payunitcode, "consigndatefrom":consigndatefrom,"consigndateto":consigndateto},
+            async: true,
+            beforeSend: function(){
+                $('#testLoad').text('正在请求数据，请稍后...');
+                $('#resetPL').attr('disabled', true);
+                $('#submitPL').attr('disabled', true);
+                $('#queryBtn').attr('disabled', true);
+                $('#piLiang_Edit').attr('disabled', true);
+                $('#testLoadGreen').text('');
+            },
+            success: function (data) {
+                $('#testLoad').text('');
+                if(data.length !== 0) {
+                    $('#reportTable').bootstrapTable('destroy');
+                    $('#reportTable').bootstrapTable({
+                        method: 'post',
+                        cache: false,
+                        striped: false,
+                        editable: true,
+                        sortOrder: "ID asc",
+                        pagination: true,
+                        pageSize: 10,
+                        pageNumber: 1,
+                        pageList: [10,30,50,100,300,500,1000],
+                        search: true,
+                        strictSearch: false,
+                        trimOnSearch: true,
+                        toolbar: ".toolbar",
+                        toolbarAlign: "left",
+                        searchAlign: "left",
+                        showColumns: true,
+                        showRefresh: false,
+                        minimumCountColumns: 1,
+                        clickToSelect: true,
+                        sidePagination: "client",
+                        rowStyle: function(row){
+                            var style = {css:{'color':'blue'}};
+                            if(row.processFlag === "1"){
+                                return {};
+                            }else{
+                                return style;
+                            }
+                        },
+                        columns:
+                            [
+                                {field: "checked", checkbox: true,
+                                    formatter: function (value, row) {
+                                        if(row.id.indexOf(",") > 0){
+                                            return {disabled: true}
+                                        }else{
+                                            return {disabled: false}
+                                        }
+                                    }
+                                },
+                                {field: "id",visible: false},
+                                {field: 'payUnitCode', visible: false, title: "结账号", align: "left", valign: "middle", halign:"center", sortable: true},
+                                {field: 'projectName', visible: false, title: "工程名称", align: "left", valign: "middle", halign:"center", sortable: true},
+                                {field: 'consignUnit', visible: false, title: "委托单位", align: "left", valign: "middle", halign:"center", sortable: true},
+                                {field: 'detectionType', title: "序号", align: "left", valign: "middle", halign:"center", sortable: true},
+                                {field: "consignDate", title: "计费类别", align: "left", valign: "middle", halign:"center", sortable: true,
+                                    formatter: function (value) {
+                                        return value.split(' ')[0];
+                                    }
+                                },
+                                {field: "sampleNo", title: "", align: "left", valign: "middle", halign:"center", sortable: true},
+                                {field: "sampleName", title: "设备名称", align: "left", valign: "middle", halign:"center", sortable: true},
+                                {field: "sampleSpec", title: "数量", align: "left", valign: "middle", halign: "center", sortable: true},
+                                {field: "parameterCode", title: "购入价", align: "left", valign: "middle", halign:"center", sortable: true},
+                                {field: "parameterName", title: "购买如期", align: "left", valign: "middle", halign:"center", sortable: true},
+                                {field: "departmentName", title: "基本比率", align: "left", valign: "middle", halign: "center", sortable: true},
+                                {field: "priceStandard", title: "年份系数", align: "left", valign: "middle", halign:"center", sortable: false},
+                                {field: "priceStandard", title: "核算比率", align: "left", valign: "middle", halign:"center", sortable: false},
+                                {field: "priceStandard", title: "报价", align: "left", valign: "middle", halign:"center", sortable: false},
+                                // {field: "", title: "", align:"left", valign:"middle", halign:"center", sortable: false, formatter: function (value, row) {
+                                //         return Number((row.price / row.priceStandard) * 100).toFixed(1) + "%" ;
+                                //     }},
+                                // {field: "price", title: "单价", align: "left", valign: "middle", halign:"center", sortable: true, width: 100,
+                                //     formatter: function (value) {
+                                //         return "<a class='username' style='color: blue; text-decoration: none;'>" + Number(value).toFixed(2) + '</a>';
+                                //     }
+                                // },
+                                // {field: "quantity", title: "数量", align: "left", valign: "middle", halign:"center", sortable: true, width: 100,
+                                //     formatter: function (value) {
+                                //         return "<a class='username' style='color: blue; text-decoration: none;'>" + Number(value).toFixed(2) + '</a>';
+                                //     }
+                                // },
+                                // {field: "", title: "合计", align: "left", valign: "middle", halign: "center", sortable: false,
+                                //     formatter: function (value, row) {
+                                //         return Number(row.price * row.quantity).toFixed(2);
+                                //     }
+                                // },
+                                {field: "status", title: "状态", align: "left", valign: "middle", halign:"center", sortable: true},
+                                // {field: "processFlag", title: "加工", align: "left", valign: "middle", halign: "center", sortable: true,
+                                //     formatter: function (value) {
+                                //         if(value === "1"){
+                                //             return "已加工";
+                                //         }else{
+                                //             return "未加工";
+                                //         }
+                                //     }
+                                // }
+                            ],
+                        data: data,
+                        onPageChange: function(number, size){
+                            standardSum = 0;
+                            Sum = 0;
+                            $("#testLoadGreen").text("");
+                        },
+                        onCheck: function (row) {
+                            standardSum += row.priceStandard * row.quantity;
+                            Sum += row.price * row.quantity;
+                            setTimeout(function () {
+                                $('#piLiang_Edit').attr('disabled', false);
+                                // 标准单价总计 + 单价总计
+                                $('#testLoadGreen').text("当前页已选中" + $("#reportTable > tbody tr.selected").length + "条可预确认参数. " +
+                                    "标准单价总计：￥" + Number(standardSum).toFixed(2) + "  " +
+                                    "单价总计：￥" + Number(Sum).toFixed(2));
+                            });
+                        },
+                        onUncheck: function(row){
+                            standardSum -= row.priceStandard * row.quantity;
+                            Sum -= row.price * row.quantity;
+                            var rowsArrayss = $('#reportTable').bootstrapTable('getSelections');
+                            if(!rowsArrayss.length){
+                                standardSum = 0;
+                                Sum = 0;
+                                $('#testLoadGreen').text("");
+                                return false;
+                            }
+                            setTimeout(function () {
+                                if ($("#reportTable > tbody tr.selected").length <= 0) {
+                                    $('#piLiang_Edit').attr('disabled', true);
+                                    $('#testLoadGreen').text("");
+                                }else{
+                                    $('#testLoadGreen').text("当前页已选中" + $("#reportTable > tbody tr.selected").length + "条可预确认参数. " +
+                                        "标准单价总计：￥" + Number(standardSum).toFixed(2) + "  " +
+                                        "单价总计：￥" + Number(Sum).toFixed(2));
+                                }
+                            });
+                        },
+                        onCheckAll: function () {
+                            standardSum = 0;
+                            Sum = 0;
+                            setTimeout(function () {
+                                if ($("#reportTable > tbody tr.selected").length <= 0) {
+                                    $('#piLiang_Edit').attr('disabled', true);
+                                    $('#testLoad').text("当前页不能预确认,请换页操作");
+                                    $('#testLoadGreen').text("");
+                                }else{
+                                    $('#piLiang_Edit').attr('disabled', false);
+                                    $('#testLoad').text("");
+                                    var rowsArray = $('#reportTable').bootstrapTable('getSelections');
+                                    rowsArray.forEach(function (row) {
+                                        if(row.id.indexOf(",") > 0){
+                                            return false;
+                                        }else{
+                                            standardSum += row.priceStandard * row.quantity;
+                                            Sum += row.price * row.quantity;
+                                        }
+                                    });
+
+                                    $('#testLoadGreen').text("当前页已选中" + $("#reportTable > tbody tr.selected").length + "条可预确认参数. " +
+                                        "标准单价总计：￥" + Number(standardSum).toFixed(2) + "  " +
+                                        "单价总计：￥" + Number(Sum).toFixed(2));
+                                }
+                            });
+                        },
+                        onUncheckAll: function () {
+                            standardSum = 0;
+                            Sum = 0;
+                            setTimeout(function () {
+                                $('#piLiang_Edit').attr('disabled', true);
+                                $('#testLoad').text("");
+                                $('#testLoadGreen').text("");
+                            });
+                        }
+                    });
+                }else{
+                    doLoadNullData();
+                }
+                $('#resetPL').attr('disabled', false);
+                $('#submitPL').attr('disabled', false);
+                $('#queryBtn').attr('disabled', false);
+                $('#testLoadGreen').text('');
+            },
+            complete: function (XMLHttpRequest, status) {
+                if (status == 'timeout') {
+                    plAjax.abort();
+                    $('#testLoad').text('请求数据已超时！请再试一次');
+                    $('#resetPL').attr('disabled', false);
+                    $('#submitPL').attr('disabled', false);
+                    $('#queryBtn').attr('disabled', false);
+                    $('#piLiang_Edit').attr('disabled', false);
+                    $('#testLoadGreen').text('');
+                }
+            }
+        });
+    }
+
+    function doLoadNullData() {
+        $('#reportTable').bootstrapTable('destroy');
+        $('#reportTable').bootstrapTable({
+            method: 'post',
+            cache: false,
+            striped: false,
+            editable: true,
+            sortOrder: "ID asc",
+            pagination: true,
+            pageSize: 10,
+            pageNumber: 1,
+            pageList: [10,30,50,100,300,500,1000],
+            search: true,
+            strictSearch: false,
+            trimOnSearch: true,
+            toolbar: ".toolbar",
+            toolbarAlign: "right",
+            searchAlign: "left",
+            showColumns: false,
+            showRefresh: false,
+            minimumCountColumns: 1,
+            clickToSelect: true,
+            sidePagination: "client",
+            columns:
+                [
+                    {field: 'payUnitCode', visible: false, title: "结账号", align: "left", valign: "middle", halign:"center", sortable: false},
+                    {field: 'projectName', visible: false, title: "工程名称", align: "left", valign: "middle", halign:"center", sortable: false},
+                    {field: 'consignUnit', visible: false, title: "委托单位", align: "left", valign: "middle", halign:"center", sortable: false},
+                    {field: 'detectionType', title: "序号", align: "left", valign: "middle", halign:"center", sortable: false},
+                    {field: "consignDate", title: "计费类别", align: "left", valign: "middle", halign:"center", sortable: false},
+                    {field: "sampleNo", title: "设备名称", align: "left", valign: "middle", halign:"center", sortable: false},
+                    {field: "sampleName", title: "数量", align: "left", valign: "middle", halign:"center", sortable: false},
+                    {field: "sampleSpec", title: "购入价", align: "left", valign: "middle", halign: "center", sortable: false},
+                    {field: "parameterCode", title: "购买日期", align: "left", valign: "middle", halign:"center", sortable: false},
+                    {field: "parameterName", title: "基本比率", align: "left", valign: "middle", halign:"center", sortable: false},
+                    {field: "departmentName", title: "年份系数", align: "left", valign: "middle", halign: "center", sortable: false},
+                    {field: "priceStandard", title: "核算比率", align: "left", valign: "middle", halign:"center", sortable: false},
+                    {field: "###", title: "报价", align:"left", valign:"middle", halign:"center", sortable: false},
+                    // {field: "price", title: "单价", align: "left", valign: "middle", halign:"center", sortable: false},
+                    // {field: "quantity", title: "数量", align: "left", valign: "middle", halign:"center", sortable: false},
+                    // {field: "####", title: "合计", align: "left", valign: "middle", halign: "center", sortable: false},
+                    // {field: "status", title: "状态", align: "left", valign: "middle", halign:"center", sortable: false}
+                ],
+            data: []
+        });
+    }
+
+    function batchEdit(isfinal){
+        var rowsArray = $('#reportTable').bootstrapTable('getSelections');
+        var ids = [];
+        rowsArray.forEach(function (value) {
+            if(value.id.indexOf(",") > 0){
+                return false;
+            }else{
+                ids.push(value.id);
+            }
+        });
+        ids = ids.join(",");
+
+        var price = $("#input_Price").val();
+        var quantity = $("#input_Amount").val();
+
+        if(isNaN(Number(quantity))){
+            $('#prepSureTips').text('输入的数量不合法，请输入合法数量');
+            $("#input_Amount").val('');
+            return false;
+        }else if(isNaN(Number(price))){
+            $('#prepSureTips').text('输入的单价不合法，请输入合法单价');
+            $("#input_Price").val('');
+            return false;
+        }
+
+        $('#prepSureTips').text('');
+        $('#editModal').modal('hide');
+        $.ajax({type:'post', url:"/para_pre_save_json",data:{"ids":ids, "price":price,"quantity":quantity, "isfinal":isfinal},async:false});
+        doLoadData($("#payUnitCode_query").val(), "", "");
+    }
+
+    /** 点击 查询结账号 按钮时，加载空数据 */
+    var firstClickQuery = true;
+    function queryBtnFcn(){
+        if(firstClickQuery){
+            doLoadPayUnitCodeData(0);
+            firstClickQuery = 0;
+        }
+    }
+
+    /** 刷新时页面加载 */
+    $(function () {
+        $("#startDate,#fromdate").datetimepicker({
+            format: 'yyyy-mm-dd',
+            weekStart: 1,
+            autoclose: true,
+            startView: 2,
+            minView: 2,
+            forceParse: true,
+            language: "zh-CN",
+            todayBtn: true,
+            todayHighlight: true,
+            clearBtn:true,
+        });
+        $("#endDate,#todate").datetimepicker({
+            format: 'yyyy-mm-dd',
+            weekStart: 1,
+            autoclose: true,
+            startView: 2,
+            minView: 2,
+            forceParse: true,
+            language: 'zh-CN',
+            todayBtn: true,
+            todayHighlight: true,
+            clearBtn:true,
+        });
+        $('#cur_user').html(getCookie("_userName") + ' 欢迎您！');
+        doLoadNullData();
+
+        /** 是否有预确认和最终确认的权限 */
+        var authls = $.ajax({type:'post', url:"/auth_ls_json",async:false});
+        authls = eval('(' + authls.responseText + ')');
+        for(var i=0;i<authls.length;i++){
+            if(authls[i].value_0=="工作量确认" && authls[i].value_1=="工作量预确认" && authls[i].value_2!=""){
+                document.getElementById("btn_pre_save").style.display = "block";
+            }
+            if(authls[i].value_0=="工作量确认" && authls[i].value_1=="工作量最终确认" && authls[i].value_2!=""){
+                document.getElementById("btn_final_save").style.display = "block";
+            }
+        }
+
+        /** 对结账号输入框的验证提示 */
+        $('#payUnitCode_query').bind('input propertychange change', function() {
+            if($(this).val() === ''){
+                $('#notNullTips').text('结帐号不能为空');
+            }else{
+                $('#notNullTips').text('');
+            }
+        });
+
+        /** 初始化委托日期 */
+        if(!getCookie("_startDate") && !getCookie("_endDate")){
+            var times = new Date();
+            $('#startDate, #fromdate').val(times.getFullYear() + '-01-01');
+            $('#endDate, #todate').val(times.getFullYear().toString() + '-' + (times.getMonth() + 1).toString() + '-' + times.getDate().toString());
+        }else{
+            $('#startDate').val(getCookie("_startDate"));
+            $('#endDate').val(getCookie("_endDate"));
+        }
+
+        if(!getCookie("_fromDateM") && !getCookie("_toDateM")){
+            var times = new Date();
+            $('#startDate, #fromdate').val(times.getFullYear() + '-01-01');
+            $('#endDate, #todate').val(times.getFullYear().toString() + '-' + (times.getMonth() + 1).toString() + '-' + times.getDate().toString());
+        }else{
+            $('#fromdate').val(getCookie("_fromDateM"));
+            $('#todate').val(getCookie("_toDateM"));
+        }
+    });
+
+    /** 清空查询参数条件 */
+    function clearConditions(){
+        cancelQuery();
+        $('#startDate').val('');
+        $('#endDate').val('');
+        $('#notNullTips').text('');
+        $('#testLoad').text('');
+        // doLoadNullData();
+    }
+
+    /** 清空查询结账号 */
+    function clearPayUnitCodeCondition(){
+        $('#projectNamePU').val('');
+        $('#consignPU').val('');
+        $('#detectPU').val('');
+        $('#payUnitLoading').text('');
+        $('#fromdate').val('');
+        $('#todate').val('');
+        // doLoadPayUnitCodeData(0);
+    }
+
+    $("#menu-toggle").click(function (e) {
+        e.preventDefault();
+        $("#wrapper").toggleClass("toggled");
+    });
+
+</script>
+</body>
+</html>
